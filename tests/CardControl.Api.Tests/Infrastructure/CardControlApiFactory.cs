@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
+using CardControl.Api.Downstream;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +15,8 @@ namespace CardControl.Api.Tests.Infrastructure;
 /// Hosts the API in-process with all log output captured. The real JWT validation rules are kept;
 /// only the source of signing keys is swapped: instead of fetching the IdP's JWKS, the API trusts
 /// <see cref="TestTokens.SigningKey"/>, so tests don't need the mock identity provider running.
-/// Likewise the PAN decryption key is generated per run (<see cref="PanKey"/>) instead of read from .dev-keys/.
+/// Likewise the PAN decryption key is generated per run (<see cref="PanKey"/>) instead of read from .dev-keys/,
+/// and both downstream services are <see cref="Bank"/>, an in-memory fake behind the real typed HTTP clients.
 /// </summary>
 public class CardControlApiFactory : WebApplicationFactory<Program>
 {
@@ -27,6 +29,8 @@ public class CardControlApiFactory : WebApplicationFactory<Program>
 
     public string EncryptPan(string pan) => TestJwe.Encrypt(pan, PanKey);
 
+    public FakeBank Bank { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -35,6 +39,8 @@ public class CardControlApiFactory : WebApplicationFactory<Program>
             ["PanEncryption:Keys:0:Kid"] = TestJwe.DefaultKid,
             ["PanEncryption:Keys:0:PrivateKeyPath"] = null,
             ["PanEncryption:Keys:0:PrivateKeyPem"] = PanKey.ExportPkcs8PrivateKeyPem(),
+            ["Downstream:Tokenisation:BaseUrl"] = FakeBank.TokenisationBaseUrl,
+            ["Downstream:CardPlatform:BaseUrl"] = FakeBank.CardPlatformBaseUrl,
         }));
         builder.ConfigureLogging(logging =>
         {
@@ -43,12 +49,20 @@ public class CardControlApiFactory : WebApplicationFactory<Program>
         });
 
         builder.ConfigureServices(services =>
+        {
             services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
                 var configuration = new OpenIdConnectConfiguration { Issuer = TestTokens.Issuer };
                 configuration.SigningKeys.Add(Tokens.SigningKey);
                 options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
-            }));
+            });
+
+            // Same typed clients as production; only the bottom of the handler pipeline is swapped.
+            services.AddHttpClient<ITokenisationClient, TokenisationClient>()
+                .ConfigurePrimaryHttpMessageHandler(() => new NonDisposingHandler(Bank));
+            services.AddHttpClient<ICardPlatformClient, CardPlatformClient>()
+                .ConfigurePrimaryHttpMessageHandler(() => new NonDisposingHandler(Bank));
+        });
     }
 
     protected override void Dispose(bool disposing)
@@ -56,6 +70,12 @@ public class CardControlApiFactory : WebApplicationFactory<Program>
         base.Dispose(disposing);
         if (disposing)
             PanKey.Dispose();
+    }
+
+    /// <summary>Lets the factory recycle handler pipelines without disposing the shared fake.</summary>
+    private sealed class NonDisposingHandler(HttpMessageHandler inner) : DelegatingHandler(inner)
+    {
+        protected override void Dispose(bool disposing) { }
     }
 
     public HttpClient CreateClient(string? bearerToken)

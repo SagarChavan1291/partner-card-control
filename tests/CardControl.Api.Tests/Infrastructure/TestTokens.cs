@@ -29,14 +29,15 @@ public sealed class TestTokens
         DateTimeOffset? expires = null,
         SecurityKey? signWith = null,
         string signingAlgorithm = SecurityAlgorithms.RsaSha256,
-        bool includeExpiry = true)
+        bool includeExpiry = true,
+        string azp = "partner-app")
     {
         var now = DateTimeOffset.UtcNow;
         var nbf = notBefore ?? now;
         var claims = new Dictionary<string, object>
         {
             ["sub"] = "3b8f2c6e-9a1d-4f7b-8e2c-5d6a7b8c9d01",
-            ["azp"] = "partner-app",
+            ["azp"] = azp,
             ["azpacr"] = "1",
             ["tid"] = "7d2e4c1a-5b3f-4e8a-9c6d-1f0a2b3c4d5e",
             ["jti"] = Guid.NewGuid().ToString(),

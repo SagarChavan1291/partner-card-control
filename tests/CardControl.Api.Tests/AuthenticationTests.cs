@@ -19,8 +19,7 @@ public class AuthenticationTests(CardControlApiFactory factory) : IClassFixture<
     {
         var response = await Post(route, factory.Tokens.CreateWithWriteRole());
 
-        // Passed authentication and authorisation; the endpoint itself is a placeholder for now.
-        Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+        AssertLetThrough(response);
     }
 
     [Theory]
@@ -77,7 +76,7 @@ public class AuthenticationTests(CardControlApiFactory factory) : IClassFixture<
             notBefore: DateTimeOffset.UtcNow.AddHours(-1),
             expires: DateTimeOffset.UtcNow.AddSeconds(-10));
 
-        Assert.Equal(HttpStatusCode.NotImplemented, (await Post("/v1/cards/lock", token)).StatusCode);
+        AssertLetThrough(await Post("/v1/cards/lock", token));
     }
 
     [Fact]
@@ -169,8 +168,26 @@ public class AuthenticationTests(CardControlApiFactory factory) : IClassFixture<
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Rejected_callers_never_reach_the_downstream_services()
+    {
+        factory.Bank.Reset();
+
+        await Post("/v1/cards/lock", token: null);
+        await Post("/v1/cards/lock", factory.Tokens.Create(roles: null));
+        await Post("/v1/cards/lock", factory.Tokens.Create(roles: [TestTokens.WriteRole], audience: "api://other-api"));
+
+        Assert.Empty(factory.Bank.Requests);
+    }
+
+    /// <summary>A complete, valid lock/unlock request: only the token decides whether it gets through.</summary>
     private Task<HttpResponseMessage> Post(string route, string? token) =>
-        factory.CreateClient(token).PostAsync(route, content: null);
+        factory.CreateClient(token).SendAsync(
+            ApiRequests.Change(route, factory.EncryptPan("4111111111111111"), "CORP-1001"));
+
+    // Got past authentication and authorisation; the card's state decides between 200 and 409.
+    private static void AssertLetThrough(HttpResponseMessage response) =>
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.OK, HttpStatusCode.Conflict });
 
     private static async Task AssertProblem(HttpResponseMessage response, HttpStatusCode status, string code)
     {

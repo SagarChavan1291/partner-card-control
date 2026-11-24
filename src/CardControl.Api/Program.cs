@@ -1,3 +1,4 @@
+using CardControl.Api.Application;
 using CardControl.Api.Downstream;
 using CardControl.Api.Endpoints;
 using CardControl.Api.Errors;
@@ -5,13 +6,23 @@ using CardControl.Api.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Don't advertise the server stack.
-builder.WebHost.ConfigureKestrel(kestrel => kestrel.AddServerHeader = false);
+builder.WebHost.ConfigureKestrel(kestrel =>
+{
+    // Don't advertise the server stack.
+    kestrel.AddServerHeader = false;
+    // A lock/unlock body is well under 2 KB; refuse anything big before reading it.
+    kestrel.Limits.MaxRequestBodySize = 16 * 1024;
+});
+
+// Malformed JSON / wrong content type: a plain 400 (turned into Problem Details by UseStatusCodePages)
+// rather than an exception, in every environment.
+builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = false);
 
 builder.Services.AddApiProblemDetails();
 builder.Services.AddPartnerAuthentication(builder.Configuration, builder.Environment);
 builder.Services.AddPanDecryption(builder.Configuration);
 builder.Services.AddDownstreamClients(builder.Configuration);
+builder.Services.AddCardControl(builder.Configuration);
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

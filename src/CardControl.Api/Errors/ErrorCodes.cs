@@ -18,6 +18,15 @@ public static class ErrorCodes
     public const string ServiceUnavailable = "ServiceUnavailable";
     public const string GatewayTimeout = "GatewayTimeout";
 
+    // Card control
+    public const string CorporateNotEnabled = "CorporateNotEnabled";
+    public const string InvalidEncryptedPan = "InvalidEncryptedPan";
+    public const string InvalidPan = "InvalidPan";
+    public const string CardNotFound = "CardNotFound";
+    public const string CardAlreadyLocked = "CardAlreadyLocked";
+    public const string CardNotLocked = "CardNotLocked";
+    public const string CardCancelled = "CardCancelled";
+
     /// <summary>Default code for a status when the code path that produced the error didn't set one.</summary>
     public static string ForStatus(int status) => status switch
     {
