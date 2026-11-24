@@ -9,9 +9,13 @@ builder.WebHost.ConfigureKestrel(kestrel => kestrel.AddServerHeader = false);
 
 builder.Services.AddApiProblemDetails();
 builder.Services.AddPartnerAuthentication(builder.Configuration, builder.Environment);
+builder.Services.AddPanDecryption(builder.Configuration);
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+// Load the PAN decryption keys now: a missing or unusable key should stop start-up, not fail a partner call.
+_ = app.Services.GetRequiredService<PanKeyRing>();
 
 // Exception handler first, so it wraps everything. It logs exceptions itself without their messages,
 // so the middleware's own diagnostics (which log the full exception) are suppressed.
