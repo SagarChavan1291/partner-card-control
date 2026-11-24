@@ -1,6 +1,154 @@
-@CardControl.Api_HostAddress = http://localhost:5190
+@api = http://localhost:5190
+@idp = http://localhost:5090
+@cards = http://localhost:5080
+@encryptedPan = eyJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NNIiwia2lkIjoiYmFuay1kZXYtMSJ9.bDhg7ZcF7iTRihZo0idC7rxIBgsO60LL_KtONpewlIY9BMnkLr-aCgHmwDdkiYbGqrIFR5X1jdsHfa1osB7dkqRFqIj8_4Q5wwKhn8VGETJ0TI4V3ljlfz6alV6toVpqnAtnugQeuM828ljmVdgPnNM1XESF3_EbZtJGVWxhzaF5egtV33OMHq7Kqh7MZ5BORUk_Fjwn14Ng5fabysCg0RKslYbmva57AUAimlLPiLXK6k44p1izkubQfWjcvkMcqQsyIyRQxLmysdnzbjSse0bkrvqKykEq1sJ8DmXe-QnhIr3w2-KVHBxpdyShr0zlX1ALhQ3-Doq4XW1XCH0P8k98yGZzt3KRlf4jWjFdrf8v6ld8VyFI80u6EIq_vCG_IEQhSPyON9IoNokjLV1c4Vh2RWPfJYqkFFZpSsKG7KNKz2LcWkJiYtuyZUkueVU4NAxG4qC-xPHqfPRmta3j2BPjrM0fnB7nOZpIKDwSXY1wKO5MSY2L9MEX_b9_lKVP._HAudF4G6X2n2ofu.TwDeGi7ACCjY6To_DZg0Aw.tmKc7JByYPChKtqOdjs2Gg
 
-GET {{CardControl.Api_HostAddress}}/healthz
-Accept: application/json
+# Sample calls for the Card Control API (Visual Studio, VS Code REST Client, Rider).
+#
+# Before you start:
+#   1. Run the identity provider (5090), tokenisation stub (5070), card platform stub (5080) and this API (5190).
+#   2. Encrypt a PAN from the repository root and paste the output as the encryptedPan value on line 4, on one line:
+#        dotnet run tools/jwe-tool.cs -- encrypt --key .dev-keys/bank-dev-1.public.pem 4111111111111111
+#   3. Send the access token request (the first request below) first. The other requests reuse it.
+#
+# Seed cards: 4111111111111111 CORP-1001 Active, 4242424242424242 CORP-1001 Locked,
+#             4012888888881881 CORP-2002 Active, 4000056655665556 CORP-2002 Cancelled,
+#             4000002500003155 CORP-3003 Active, 4000000000003220 no corporate, Active.
+# The partner is enabled for CORP-1001 and CORP-2002 only.
 
 ###
+# Get a partner access token (client credentials). Send this first.
+# @name partnerToken
+POST {{idp}}/oauth2/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=partner-app&client_secret=dev-only-partner-app-secret&scope=api%3A%2F%2Fcard-control%2F.default
+
+### Lock the card. Expect 200, status Locked
+POST {{api}}/v1/cards/lock
+Authorization: Bearer {{partnerToken.response.body.$.access_token}}
+X-Initiating-User: jane.smith@acme.example
+Content-Type: application/json
+
+{
+  "encryptedPan": "{{encryptedPan}}",
+  "corporateId": "CORP-1001"
+}
+
+### Lock it again. Expect 409 CardAlreadyLocked
+POST {{api}}/v1/cards/lock
+Authorization: Bearer {{partnerToken.response.body.$.access_token}}
+X-Initiating-User: jane.smith@acme.example
+Content-Type: application/json
+
+{
+  "encryptedPan": "{{encryptedPan}}",
+  "corporateId": "CORP-1001"
+}
+
+### Unlock the card. Expect 200, status Active
+POST {{api}}/v1/cards/unlock
+Authorization: Bearer {{partnerToken.response.body.$.access_token}}
+X-Initiating-User: jane.smith@acme.example
+Content-Type: application/json
+
+{
+  "encryptedPan": "{{encryptedPan}}",
+  "corporateId": "CORP-1001"
+}
+
+### Corporate the partner is not enabled for. Expect 403 CorporateNotEnabled
+POST {{api}}/v1/cards/lock
+Authorization: Bearer {{partnerToken.response.body.$.access_token}}
+X-Initiating-User: jane.smith@acme.example
+Content-Type: application/json
+
+{
+  "encryptedPan": "{{encryptedPan}}",
+  "corporateId": "CORP-3003"
+}
+
+### Card named with the wrong corporate. Expect 404 CardNotFound
+POST {{api}}/v1/cards/lock
+Authorization: Bearer {{partnerToken.response.body.$.access_token}}
+X-Initiating-User: jane.smith@acme.example
+Content-Type: application/json
+
+{
+  "encryptedPan": "{{encryptedPan}}",
+  "corporateId": "CORP-2002"
+}
+
+### No X-Initiating-User header. Expect 400 InvalidRequest
+POST {{api}}/v1/cards/lock
+Authorization: Bearer {{partnerToken.response.body.$.access_token}}
+Content-Type: application/json
+
+{
+  "encryptedPan": "{{encryptedPan}}",
+  "corporateId": "CORP-1001"
+}
+
+### Clear PAN instead of a JWE. Expect 400 InvalidEncryptedPan
+POST {{api}}/v1/cards/lock
+Authorization: Bearer {{partnerToken.response.body.$.access_token}}
+X-Initiating-User: jane.smith@acme.example
+Content-Type: application/json
+
+{
+  "encryptedPan": "4111111111111111",
+  "corporateId": "CORP-1001"
+}
+
+### No token. Expect 401
+POST {{api}}/v1/cards/lock
+X-Initiating-User: jane.smith@acme.example
+Content-Type: application/json
+
+{
+  "encryptedPan": "{{encryptedPan}}",
+  "corporateId": "CORP-1001"
+}
+
+###
+# Get a token without the CardControl.Write role (partner-readonly).
+# @name readonlyToken
+POST {{idp}}/oauth2/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=partner-readonly&client_secret=dev-only-partner-readonly-secret&scope=api%3A%2F%2Fcard-control%2F.default
+
+### Use that token. Expect 403
+POST {{api}}/v1/cards/lock
+Authorization: Bearer {{readonlyToken.response.body.$.access_token}}
+X-Initiating-User: jane.smith@acme.example
+Content-Type: application/json
+
+{
+  "encryptedPan": "{{encryptedPan}}",
+  "corporateId": "CORP-1001"
+}
+
+### Card platform audit trail for the 4111 card (stub admin API)
+GET {{cards}}/cards/ctok_8f3a1c2e9b7d4a01/audit
+
+### Make the card platform flaky, 30 percent of calls fail
+PUT {{cards}}/admin/faults
+Content-Type: application/json
+
+{ "latencyMs": 0, "errorRate": 0.3 }
+
+### Make the card platform slow, 3 seconds per call. Lock then returns 504
+PUT {{cards}}/admin/faults
+Content-Type: application/json
+
+{ "latencyMs": 3000, "errorRate": 0 }
+
+### Reset the card platform (seed data, faults and audit trail)
+POST {{cards}}/admin/reset
+
+### Health (no token needed)
+GET {{api}}/healthz
+
+### OpenAPI document (Development only)
+GET {{api}}/openapi/v1.json

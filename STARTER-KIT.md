@@ -260,4 +260,3 @@ Shared by both stubs:
 | 4000000000003220 | ctok_7c2e5a9f3d1b6c06 | *(none)* | Active |
 
 These are well-known public test card numbers, not real cards. Which corporates the partner is enabled for is in the exercise brief.
-"# synechron-starter" 
