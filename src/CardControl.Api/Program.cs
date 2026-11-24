@@ -1,4 +1,6 @@
+using CardControl.Api.Endpoints;
 using CardControl.Api.Errors;
+using CardControl.Api.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -6,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(kestrel => kestrel.AddServerHeader = false);
 
 builder.Services.AddApiProblemDetails();
+builder.Services.AddPartnerAuthentication(builder.Configuration, builder.Environment);
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -14,20 +17,26 @@ var app = builder.Build();
 // so the middleware's own diagnostics (which log the full exception) are suppressed.
 app.UseExceptionHandler(new ExceptionHandlerOptions { SuppressDiagnosticsCallback = _ => true });
 
-// Empty-bodied error responses (404 for unknown routes, 405, 415...) also become Problem Details.
+// Empty-bodied error responses (404 for unknown routes, 401/403 challenges, 405, 415...) also become Problem Details.
 app.UseStatusCodePages();
-
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
 
 // TLS: in AKS, TLS is terminated at the ingress (and mTLS inside the mesh), so the app doesn't
 // redirect to HTTPS itself. Locally it runs on plain HTTP alongside the starter kit stubs.
 
+app.UseAuthentication();
+app.UseAuthorization();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi().AllowAnonymous();
+}
+
 app.MapGet("/healthz", () => TypedResults.Ok(new { status = "ok" }))
+    .AllowAnonymous()
     .WithName("Health")
     .ExcludeFromDescription();
+
+app.MapCardEndpoints();
 
 app.Run();
 

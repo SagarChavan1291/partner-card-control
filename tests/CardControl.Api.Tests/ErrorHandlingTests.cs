@@ -21,9 +21,17 @@ public class ErrorHandlingTests(CardControlApiFactory factory) : IClassFixture<C
     }
 
     [Fact]
-    public async Task Unknown_route_returns_problem_details_with_code_and_trace_id()
+    public async Task Unknown_route_is_401_for_anonymous_callers_so_routes_cannot_be_probed()
     {
         var response = await factory.CreateClient().GetAsync("/no-such-route");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Unknown_route_returns_problem_details_with_code_and_trace_id()
+    {
+        var response = await factory.CreateClient(factory.Tokens.CreateWithWriteRole()).GetAsync("/no-such-route");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
@@ -49,7 +57,7 @@ public class ErrorHandlingTests(CardControlApiFactory factory) : IClassFixture<C
         // exception handler and throws an exception whose message holds sensitive data.
         await using var throwing = new ThrowingFactory();
 
-        var response = await throwing.CreateClient().GetAsync("/boom");
+        var response = await throwing.CreateClient(throwing.Tokens.CreateWithWriteRole()).GetAsync("/boom");
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
