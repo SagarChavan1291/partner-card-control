@@ -14,6 +14,8 @@ public static class ProblemDetailsSetup
     /// </summary>
     public static IServiceCollection AddApiProblemDetails(this IServiceCollection services)
     {
+        // Exception handlers run in registration order; the catch-all goes last.
+        services.AddExceptionHandler<DownstreamExceptionHandler>();
         services.AddExceptionHandler<UnhandledExceptionHandler>();
         services.AddProblemDetails(options => options.CustomizeProblemDetails = ctx =>
         {

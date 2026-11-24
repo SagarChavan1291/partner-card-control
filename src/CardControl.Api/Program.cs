@@ -1,3 +1,4 @@
+using CardControl.Api.Downstream;
 using CardControl.Api.Endpoints;
 using CardControl.Api.Errors;
 using CardControl.Api.Security;
@@ -10,6 +11,7 @@ builder.WebHost.ConfigureKestrel(kestrel => kestrel.AddServerHeader = false);
 builder.Services.AddApiProblemDetails();
 builder.Services.AddPartnerAuthentication(builder.Configuration, builder.Environment);
 builder.Services.AddPanDecryption(builder.Configuration);
+builder.Services.AddDownstreamClients(builder.Configuration);
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

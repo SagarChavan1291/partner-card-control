@@ -14,6 +14,9 @@ public static class ErrorCodes
     public const string UnsupportedMediaType = "UnsupportedMediaType";
     public const string PayloadTooLarge = "PayloadTooLarge";
     public const string InternalError = "InternalError";
+    public const string BadGateway = "BadGateway";
+    public const string ServiceUnavailable = "ServiceUnavailable";
+    public const string GatewayTimeout = "GatewayTimeout";
 
     /// <summary>Default code for a status when the code path that produced the error didn't set one.</summary>
     public static string ForStatus(int status) => status switch
