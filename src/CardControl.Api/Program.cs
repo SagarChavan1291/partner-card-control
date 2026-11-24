@@ -1,41 +1,35 @@
+using CardControl.Api.Errors;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// Don't advertise the server stack.
+builder.WebHost.ConfigureKestrel(kestrel => kestrel.AddServerHeader = false);
+
+builder.Services.AddApiProblemDetails();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Exception handler first, so it wraps everything. It logs exceptions itself without their messages,
+// so the middleware's own diagnostics (which log the full exception) are suppressed.
+app.UseExceptionHandler(new ExceptionHandlerOptions { SuppressDiagnosticsCallback = _ => true });
+
+// Empty-bodied error responses (404 for unknown routes, 405, 415...) also become Problem Details.
+app.UseStatusCodePages();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+// TLS: in AKS, TLS is terminated at the ingress (and mTLS inside the mesh), so the app doesn't
+// redirect to HTTPS itself. Locally it runs on plain HTTP alongside the starter kit stubs.
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+app.MapGet("/healthz", () => TypedResults.Ok(new { status = "ok" }))
+    .WithName("Health")
+    .ExcludeFromDescription();
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+// Exposed for WebApplicationFactory in the integration tests.
+public partial class Program;
