@@ -1,6 +1,9 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Polly;
+using Polly.CircuitBreaker;
+using Polly.Timeout;
 
 namespace CardControl.Api.Downstream;
 
@@ -30,10 +33,25 @@ internal static class DownstreamHttp
         {
             throw;
         }
-        catch (OperationCanceledException ex)
+        catch (TimeoutRejectedException)
         {
-            // HttpClient.Timeout (or a resilience timeout) fired; the caller didn't cancel.
-            throw new DownstreamException(service, operation, DownstreamFailure.Timeout, innerException: ex);
+            // The resilience pipeline's attempt or total timeout fired.
+            throw new DownstreamException(service, operation, DownstreamFailure.Timeout);
+        }
+        catch (OperationCanceledException)
+        {
+            // HttpClient.Timeout (the backstop) fired; the caller didn't cancel.
+            throw new DownstreamException(service, operation, DownstreamFailure.Timeout);
+        }
+        catch (BrokenCircuitException)
+        {
+            // Circuit open: failing fast without calling the service.
+            throw new DownstreamException(service, operation, DownstreamFailure.Unavailable, errorCode: "CircuitOpen");
+        }
+        catch (ExecutionRejectedException)
+        {
+            // Anything else the pipeline refused to run (e.g. the concurrency limiter).
+            throw new DownstreamException(service, operation, DownstreamFailure.Unavailable);
         }
         catch (HttpRequestException ex)
         {

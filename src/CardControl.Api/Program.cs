@@ -18,6 +18,11 @@ builder.WebHost.ConfigureKestrel(kestrel =>
 // rather than an exception, in every environment.
 builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = false);
 
+// Polly's built-in logging records exception messages (which could carry request data such as a PAN) at
+// Information level. It's switched off here, in code so configuration can't re-enable it by accident;
+// resilience events are logged by our own callbacks instead (see AddDownstreamClients). Polly metrics are unaffected.
+builder.Logging.AddFilter("Polly", LogLevel.None);
+
 builder.Services.AddApiProblemDetails();
 builder.Services.AddPartnerAuthentication(builder.Configuration, builder.Environment);
 builder.Services.AddPanDecryption(builder.Configuration);

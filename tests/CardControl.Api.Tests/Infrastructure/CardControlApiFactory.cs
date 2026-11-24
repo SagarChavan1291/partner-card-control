@@ -41,6 +41,11 @@ public class CardControlApiFactory : WebApplicationFactory<Program>
             ["PanEncryption:Keys:0:PrivateKeyPem"] = PanKey.ExportPkcs8PrivateKeyPem(),
             ["Downstream:Tokenisation:BaseUrl"] = FakeBank.TokenisationBaseUrl,
             ["Downstream:CardPlatform:BaseUrl"] = FakeBank.CardPlatformBaseUrl,
+            // Everything, from every category, so leak tests see what the most verbose production setting would log.
+            // (appsettings' per-category levels would otherwise override SetMinimumLevel below.)
+            ["Logging:LogLevel:Default"] = "Trace",
+            ["Logging:LogLevel:Microsoft.AspNetCore"] = "Trace",
+            ["Logging:LogLevel:Microsoft.AspNetCore.Authentication"] = "Trace",
         }));
         builder.ConfigureLogging(logging =>
         {
