@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CardControl.Api/CardControl.Api.csproj" />
+  </Folder>
+  <Folder Name="/starter-kit/">
+    <Project Path="card-platform-stub/CardPlatformStub.csproj" />
+    <Project Path="mock-identity-provider/MockIdentityProvider.csproj" />
+    <Project Path="tokenisation-stub/TokenisationStub.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CardControl.Api.Tests/CardControl.Api.Tests.csproj" />
+  </Folder>
+</Solution>
