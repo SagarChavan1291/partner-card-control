@@ -16,7 +16,7 @@
 #             4000002500003155 CORP-3003 Active, 4000000000003220 no corporate, Active.
 # The partner is enabled for CORP-1001 and CORP-2002 only.
 
-###
+
 # Get a partner access token (client credentials). Send this first.
 # @name partnerToken
 POST {{idp}}/oauth2/token
