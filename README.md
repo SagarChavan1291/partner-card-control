@@ -141,7 +141,7 @@ sequenceDiagram
     participant T as Tokenisation
     participant C as Card platform
     P->>A: POST /v1/cards/lock (Bearer JWT, X-Initiating-User, JWE, corporateId)
-    A-->>I: JWKS (cached; refreshed on unknown kid)
+    A-->>I: JWKS (cached, refreshed on unknown kid)
     Note over A: 1. Validate token: signature, iss, aud, exp/nbf, role
     Note over A: 2. Validate X-Initiating-User and body
     Note over A: 3. Is this client enabled for corporateId? (before touching the PAN)
